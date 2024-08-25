@@ -17,27 +17,46 @@ check_success() {
     fi
 }
 
+# Paketlərin mövcudluğunu yoxla
+check_package() {
+    dpkg -l | grep -q "^ii  $1 "
+}
+
 # Paketlərin quraşdırılması və konfiqurasiyası
 install_packages() {
     log "INFO" "Paketlərin quraşdırılması..."
     sudo apt update -y
     sudo apt upgrade -y
-    sudo apt install -y "$@"
-    check_success "Paketlərin quraşdırılması uğursuz oldu."
+    for pkg in "$@"; do
+        if ! check_package $pkg; then
+            sudo apt install -y $pkg
+            check_success "Paketlərin quraşdırılması uğursuz oldu: $pkg"
+        else
+            log "INFO" "$pkg artıq quraşdırılıb."
+        fi
+    done
 }
 
 # Snap quraşdırılması
 install_snap() {
     log "INFO" "Snap paket menecerinin quraşdırılması..."
-    sudo apt install -y snapd
-    check_success "Snap quraşdırılması uğursuz oldu."
+    if ! check_package snapd; then
+        sudo apt install -y snapd
+        check_success "Snap quraşdırılması uğursuz oldu."
+    else
+        log "INFO" "Snap artıq quraşdırılıb."
+    fi
 }
 
 # Flatpak quraşdırılması
 install_flatpak() {
     log "INFO" "Flatpak quraşdırılması..."
-    sudo apt install -y flatpak
-    check_success "Flatpak quraşdırılması uğursuz oldu."
+    if ! check_package flatpak; then
+        sudo apt install -y flatpak
+        check_success "Flatpak quraşdırılması uğursuz oldu."
+    else
+        log "INFO" "Flatpak artıq quraşdırılıb."
+    fi
 }
 
 # Paketlərin yenilənməsi
@@ -75,12 +94,10 @@ if [ -f /etc/ssh/sshd_config ]; then
         log "INFO" "Fayl mövcuddur və yazma icazəsi var, dəyişiklik ediləcək..."
         
         # SSH konfiqurasiya dəyişiklikləri
-        sudo sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
-        sudo sed -i 's/^#Port 22/Port 2222/' /etc/ssh/sshd_config
-        check_success "SSH təhlükəsizliyi konfiqurasiyası uğursuz oldu."
+        sudo sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config || log "ERROR" "SSH konfiqurasiya dəyişikliyi uğursuz oldu."
+        sudo sed -i 's/^#Port 22/Port 2222/' /etc/ssh/sshd_config || log "ERROR" "SSH port dəyişikliyi uğursuz oldu."
         
-        sudo systemctl restart sshd
-        check_success "SSHD xidməti yenidən başlamadı."
+        sudo systemctl restart sshd || log "ERROR" "SSHD xidməti yenidən başlamadı."
     else
         log "ERROR" "Fayla yazma icazəsi yoxdur: /etc/ssh/sshd_config"
         exit 1
@@ -129,12 +146,16 @@ install_packages \
 
 # Swap Yaratmaq
 log "INFO" "Swap faylı yaradılır..."
-sudo fallocate -l 2G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-check_success "Swap faylının yaradılması uğursuz oldu."
+if [ ! -f /swapfile ]; then
+    sudo fallocate -l 2G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+    check_success "Swap faylının yaradılması uğursuz oldu."
+else
+    log "INFO" "Swap faylı artıq mövcuddur."
+fi
 
 # NTP Quraşdırılması
 log "INFO" "NTP quraşdırılır..."
@@ -144,8 +165,7 @@ check_success "NTP quraşdırılması uğursuz oldu."
 # Təhlükəsizlik Yoxlanışı
 log "INFO" "Təhlükəsizlik yoxlanışı..."
 install_packages lynis
-sudo lynis audit system
-check_success "Təhlükəsizlik yoxlanışı uğursuz oldu."
+sudo lynis audit system || log "ERROR" "Təhlükəsizlik yoxlanışı uğursuz oldu."
 
 # Təhlükəsizlik Yoxlamalarının nəticələrini nəzərdən keçirin
 log "INFO" "Təhlükəsizlik yoxlamasının nəticələri /var/log/lynis.log faylında qeyd edilib."
@@ -154,42 +174,35 @@ log "INFO" "Təhlükəsizlik yoxlamasının nəticələri /var/log/lynis.log fay
 log "INFO" "Performans tənzimləmələri..."
 # CPU frekansını optimallaşdırma
 if [ -d /sys/devices/system/cpu/cpu*/cpufreq ]; then
-    echo "1" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-    check_success "CPU performans tənzimləməsi uğursuz oldu."
+    echo "1" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor || log "ERROR" "CPU performans tənzimləməsi uğursuz oldu."
 else
     log "WARNING" "CPU performans tənzimləmələri üçün fayllar mövcud deyil."
 fi
 
 # Disk təmizliyi
 log "INFO" "Disk təmizliyi..."
-ncdu / | tee /tmp/disk_usage.txt
-check_success "Disk təmizliyi uğursuz oldu."
+ncdu / | tee /tmp/disk_usage.txt || log "ERROR" "Disk təmizliyi uğursuz oldu."
 
 # Zaman Zona Konfiqurasiyası
 log "INFO" "Zaman zona konfiqurasiyası..."
-sudo timedatectl set-timezone "UTC"
-check_success "Zaman zona konfiqurasiyası uğursuz oldu."
+sudo timedatectl set-timezone "UTC" || log "ERROR" "Zaman zona konfiqurasiyası uğursuz oldu."
 
 # Log fayllarının idarə edilməsi
 log "INFO" "Log fayllarının idarə edilməsi..."
-sudo logrotate -f /etc/logrotate.conf
-check_success "Log fayllarının idarə edilməsi uğursuz oldu."
+sudo logrotate -f /etc/logrotate.conf || log "ERROR" "Log fayllarının idarə edilməsi uğursuz oldu."
 
 # Sistemin İşini İzləmə
 log "INFO" "Sistemin işini izləmə..."
-top -b -n 1 | head -n 20 | tee /tmp/system_usage.txt
-check_success "Sistemin işinin izlənməsi uğursuz oldu."
+top -b -n 1 | head -n 20 | tee /tmp/system_usage.txt || log "ERROR" "Sistemin işinin izlənməsi uğursuz oldu."
 
 # Sistem Yedəkləmə
 log "INFO" "Sistem yedəkləmə..."
-sudo rsync -av --delete /etc/ /var/backups/etc_backup/
-check_success "Sistem yedəkləməsi uğursuz oldu."
+sudo rsync -av --delete /etc/ /var/backups/etc_backup/ || log "ERROR" "Sistem yedəkləməsi uğursuz oldu."
 
 # Sistem Təmizliyi
 log "INFO" "Sistem təmizlənir..."
 sudo apt autoremove -y
-sudo apt clean
-check_success "Sistem təmizlənməsi uğursuz oldu."
+sudo apt clean || log "ERROR" "Sistem təmizlənməsi uğursuz oldu."
 
 # Snap və Flatpak quraşdırılması
 install_snap
