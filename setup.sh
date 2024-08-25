@@ -103,8 +103,7 @@ if [ -f /etc/ssh/sshd_config ]; then
         exit 1
     fi
 else
-    log "ERROR" "Fayl mövcud deyil: /etc/ssh/sshd_config"
-    exit 1
+    log "WARNING" "Fayl mövcud deyil: /etc/ssh/sshd_config. SSH serverini quraşdırmağı yoxlayın."
 fi
 
 # Zəruri Paketlərin Quraşdırılması
@@ -127,8 +126,11 @@ install_packages \
     zip \
     unzip \
     apt-transport-https \
-    iputils-ping \
-    netcat
+    iputils-ping
+
+# `netcat` paketinin konkret versiyasını quraşdırın
+log "INFO" "Netcat quraşdırılması..."
+sudo apt install -y netcat-openbsd || log "ERROR" "Netcat quraşdırılması uğursuz oldu."
 
 # VDS serverlər üçün əlavə paketlər
 log "INFO" "VDS serverlər üçün əlavə paketlərin quraşdırılması..."
