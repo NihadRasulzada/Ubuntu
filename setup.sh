@@ -68,10 +68,27 @@ check_success "UFW firewall konfiqurasiyası uğursuz oldu."
 
 # SSH Təhlükəsizliyi
 log "INFO" "SSH təhlükəsizliyi konfiqurasiyası..."
-sudo sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
-sudo sed -i 's/^#Port 22/Port 2222/' /etc/ssh/sshd_config
-sudo systemctl restart sshd
-check_success "SSH təhlükəsizliyi konfiqurasiyası uğursuz oldu."
+
+# Faylın mövcudluğunu və yazma icazələrini yoxlayın
+if [ -f /etc/ssh/sshd_config ]; then
+    if [ -w /etc/ssh/sshd_config ]; then
+        log "INFO" "Fayl mövcuddur və yazma icazəsi var, dəyişiklik ediləcək..."
+        
+        # SSH konfiqurasiya dəyişiklikləri
+        sudo sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+        sudo sed -i 's/^#Port 22/Port 2222/' /etc/ssh/sshd_config
+        check_success "SSH təhlükəsizliyi konfiqurasiyası uğursuz oldu."
+        
+        sudo systemctl restart sshd
+        check_success "SSHD xidməti yenidən başlamadı."
+    else
+        log "ERROR" "Fayla yazma icazəsi yoxdur: /etc/ssh/sshd_config"
+        exit 1
+    fi
+else
+    log "ERROR" "Fayl mövcud deyil: /etc/ssh/sshd_config"
+    exit 1
+fi
 
 # Zəruri Paketlərin Quraşdırılması
 log "INFO" "Zəruri paketlərin quraşdırılması..."
