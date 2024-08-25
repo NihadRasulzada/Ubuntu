@@ -154,7 +154,7 @@ if [ ! -f "$DOCKER_DAEMON_CONF" ]; then
 fi
 
 # Docker xidmətlərinin avtomatik başlamaq üçün konfiqurasiya
-echo "Docker xidmətlərinin avtomatik başlamaq üçün konfiqurasiya..."
+echo "Docker xidmətlərinin avtomatik başlamaq üçün konfiqurasiyası..."
 sudo systemctl enable docker || handle_error "Docker xidmətinin avtomatik başlamaq üçün konfiqurasiyası uğursuz oldu." 1
 
 # Firewall konfiqurasiyası
